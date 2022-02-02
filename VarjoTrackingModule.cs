@@ -12,22 +12,27 @@ namespace VRCFTVarjoModule
     public static class TrackingData
     {
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
-        public static void Update(this Eye data, MemoryEye external)
+        public static void Update(this Eye data, GazeRay external, GazeEyeStatus eyeStatus)
         {
+            data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
+            data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
             
-            data.Look = new Vector2((float) external.x, (float) external.y);
-            data.Openness = external.opened ? 1F : 0F;
+        }
+
+        public static void Update(this Eye data, GazeRay external)
+        {
+            data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
         }
 
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
-        public static void Update(this EyeTrackingData data, MemoryData external)
+        public static void Update(this EyeTrackingData data, GazeData external)
         {
-            Update(data.Left, external.rightEye);
-            Update(data.Right, external.leftEye);
-            Update(data.Combined, external.combined);
-            Console.WriteLine(external.combined.opened);
+            data.Left.Update(external.rightEye, external.rightStatus);
+            data.Right.Update(external.leftEye, external.leftStatus);
+            data.Combined.Update(external.gaze);
+            Console.WriteLine(external.leftStatus);
             Console.Write(" ");
-            Console.WriteLine(data.Combined.Openness);
+            Console.WriteLine(data.Left.Openness);
         }
 
     }
@@ -63,7 +68,8 @@ namespace VRCFTVarjoModule
         public void Update()
         {
             tracker.Update();
-            TrackingData.Update(UnifiedTrackingData.LatestEyeData, tracker.memoryGazeData);
+            UnifiedTrackingData.LatestEyeData.Update(tracker.memoryGazeData);
+            //TrackingData.Update(UnifiedTrackingData.LatestEyeData, tracker.memoryGazeData);
         }
 
         // A chance to de-initialize everything. This runs synchronously inside main game thread. Do not touch any Unity objects here.
