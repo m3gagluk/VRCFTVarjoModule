@@ -36,15 +36,29 @@ namespace VRCFTVarjoModule
     
     public class VarjoTrackingModule : ITrackingModule
     {
-        private static readonly VarjoCompanionInterface tracker = new VarjoCompanionInterface();
+        private static VarjoInterface tracker;
         private static CancellationTokenSource _cancellationToken;
 
         // Synchronous module initialization. Take as much time as you need to initialize any external modules. This runs in the init-thread
         public (bool eyeSuccess, bool lipSuccess) Initialize(bool eye, bool lip)
         {
-            Logger.Msg("Initializing Varjo module");
-            bool pipeConnected = tracker.ConnectToPipe();
+            if (IsStandalone())
+            {
+                tracker = new VarjoNativeInterface();
+            }
+            else
+            {
+                tracker = new VarjoCompanionInterface();
+            }
+            Logger.Msg(string.Format("Initializing {0} Varjo module", tracker.GetName()));
+            bool pipeConnected = tracker.Initialize();
             return (pipeConnected, false);
+        }
+
+        // Detects if the module is running in the standalone version of VRCFT
+        private bool IsStandalone()
+        {
+            return true; // uuuh that will do anyway
         }
 
         // This will be run in the tracking thread. This is exposed so you can control when and if the tracking data is updated down to the lowest level.
@@ -65,7 +79,7 @@ namespace VRCFTVarjoModule
         public void Update()
         {
             tracker.Update();
-            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.memoryGazeData);
+            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData());
         }
 
         // A chance to de-initialize everything. This runs synchronously inside main game thread. Do not touch any Unity objects here.

@@ -85,6 +85,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="VarjoInterface.cs" />
+    <Compile Include="VarjoNativeInterface.cs" />
     <Compile Include="VarjoTrackingModule.cs" />
     <Compile Include="VarjoCompanionInterface.cs" />
   </ItemGroup>
@@ -93,7 +95,6 @@
     <VisualStudio AllowExistingFolder="true" />
   </ProjectExtensions>
   <PropertyGroup>
-    <PostBuildEvent>
-    </PostBuildEvent>
+    <PostBuildEvent>xcopy "$(TargetDir)$(TargetName)$(TargetExt)" "%APPDATA%\VRCFaceTracking\CustomLibs" /Y</PostBuildEvent>
   </PropertyGroup>
 </Project>
