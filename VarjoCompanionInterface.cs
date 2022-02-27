@@ -1,10 +1,10 @@
-﻿using MelonLoader;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Threading;
+using VRCFaceTracking;
 
 namespace VRCFTVarjoModule
 {
@@ -112,10 +112,11 @@ namespace VRCFTVarjoModule
         {
             if (!VarjoAvailable())
             {
-                MelonLogger.Msg("Varjo headset isn't detected");
+                Logger.Error("Varjo headset isn't detected");
                 return false;
             }
             var modDir = GetModuleDir();
+
 
             CompanionProcess = new Process();
             CompanionProcess.StartInfo.WorkingDirectory = modDir;
@@ -132,11 +133,11 @@ namespace VRCFTVarjoModule
                 }
                 catch (FileNotFoundException)
                 {
-                    MelonLogger.Warning("VarjoEyeTracking mapped file doesn't exist; the companion app probably isn't running");
+                    Console.WriteLine("VarjoEyeTracking mapped file doesn't exist; the companion app probably isn't running");
                 }
                 catch (Exception ex)
                 {
-                    MelonLogger.Error("Could not open the mapped file: " + ex);
+                    Console.WriteLine("Could not open the mapped file: " + ex);
                     return false;
                 }
                 Thread.Sleep(500);
@@ -162,7 +163,7 @@ namespace VRCFTVarjoModule
 
         private string GetModuleDir()
         {
-            return MelonUtils.BaseDirectory + "\\Mods\\VRCFTLibs\\Varjo";
+            return Utils.DataDirectory + "\\CustomLibs\\Varjo";
         }
 
         private bool VarjoAvailable()

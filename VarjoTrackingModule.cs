@@ -1,5 +1,4 @@
-﻿using MelonLoader;
-using System;
+﻿using System;
 using System.Threading;
 using VRCFaceTracking;
 using VRCFaceTracking.Params;
@@ -12,27 +11,25 @@ namespace VRCFTVarjoModule
     public static class TrackingData
     {
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
-        public static void Update(this Eye data, GazeRay external, GazeEyeStatus eyeStatus)
+        public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
         {
             data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
             data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
             
         }
 
-        public static void Update(this Eye data, GazeRay external)
+        public static void Update(ref Eye data, GazeRay external)
         {
             data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
         }
 
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
-        public static void Update(this EyeTrackingData data, GazeData external)
+        public static void Update(ref EyeTrackingData data, GazeData external)
         {
-            data.Left.Update(external.rightEye, external.rightStatus);
-            data.Right.Update(external.leftEye, external.leftStatus);
-            data.Combined.Update(external.gaze);
-            Console.WriteLine(external.leftStatus);
-            Console.Write(" ");
-            Console.WriteLine(data.Left.Openness);
+            Update(ref data.Right, external.rightEye, external.rightStatus);
+            Update(ref data.Left, external.leftEye, external.leftStatus);
+            Update(ref data.Combined, external.gaze);
+
         }
 
     }
@@ -45,7 +42,7 @@ namespace VRCFTVarjoModule
         // Synchronous module initialization. Take as much time as you need to initialize any external modules. This runs in the init-thread
         public (bool eyeSuccess, bool lipSuccess) Initialize(bool eye, bool lip)
         {
-            MelonLogger.Msg("Initializing Varjo module");
+            Logger.Msg("Initializing Varjo module");
             bool pipeConnected = tracker.ConnectToPipe();
             return (pipeConnected, false);
         }
@@ -68,8 +65,7 @@ namespace VRCFTVarjoModule
         public void Update()
         {
             tracker.Update();
-            UnifiedTrackingData.LatestEyeData.Update(tracker.memoryGazeData);
-            //TrackingData.Update(UnifiedTrackingData.LatestEyeData, tracker.memoryGazeData);
+            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.memoryGazeData);
         }
 
         // A chance to de-initialize everything. This runs synchronously inside main game thread. Do not touch any Unity objects here.
@@ -78,7 +74,6 @@ namespace VRCFTVarjoModule
             _cancellationToken.Cancel();
             tracker.Teardown();
             _cancellationToken.Dispose();
-            MelonLogger.Msg("Teardown");
         }
 
 
