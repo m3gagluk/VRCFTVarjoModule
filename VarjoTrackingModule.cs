@@ -29,7 +29,21 @@ namespace VRCFTVarjoModule
             Update(ref data.Left, external.leftEye, external.leftStatus);
             Update(ref data.Combined, external.gaze);
 
-            double pupilSize = (external.leftPupilSize + external.rightPupilSize) / 2;
+            // Determines whether the pupil Size/Eye dilation
+            // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one. It's a Hack, but I've confirmed it working @Chickenbread
+            double pupilSize = 0;
+            if (data.Right.Openness == data.Left.Openness)
+            {
+                pupilSize = (external.leftPupilSize + external.rightPupilSize) / 0.2;
+            }
+            else if (data.Right.Openness > data.Left.Openness)
+            {
+                pupilSize = external.rightPupilSize * 10;
+            }
+            else
+            {
+                pupilSize = external.leftPupilSize * 10;
+            }
             data.EyesDilation = (float)pupilSize;
         }
 
