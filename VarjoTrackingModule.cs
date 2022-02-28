@@ -15,7 +15,6 @@ namespace VRCFTVarjoModule
         {
             data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
             data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
-            
         }
 
         public static void Update(ref Eye data, GazeRay external)
@@ -30,6 +29,8 @@ namespace VRCFTVarjoModule
             Update(ref data.Left, external.leftEye, external.leftStatus);
             Update(ref data.Combined, external.gaze);
 
+            double pupilSize = (external.leftPupilSize + external.rightPupilSize) / 2;
+            data.EyesDilation = (float)pupilSize;
         }
 
     }
