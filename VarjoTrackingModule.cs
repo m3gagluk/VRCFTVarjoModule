@@ -48,9 +48,13 @@ namespace VRCFTVarjoModule
             }
             else
             {
-                pupilSize = external.leftPupilSize ;
+                pupilSize = external.leftPupilSize;
             }
-            data.EyesDilation = (float)calculateEyeDilation(ref pupilSize);
+
+            if (pupilSize != 0)
+            {
+                data.EyesDilation = (float)calculateEyeDilation(ref pupilSize);
+            }
         }
 
         // This Function is used to calculate the Eye Dilation based on the lowest and highest measured Pupil Size
