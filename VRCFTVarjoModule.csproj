@@ -76,9 +76,6 @@
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>E:\Program Files\Steam\steamapps\common\VRChat\MelonLoader\Managed\UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
     <Reference Include="VRCFaceTracking, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\osc\VRCFaceTracking\VRCFaceTracking.exe</HintPath>
@@ -89,6 +86,9 @@
     <Compile Include="VarjoNativeInterface.cs" />
     <Compile Include="VarjoTrackingModule.cs" />
     <Compile Include="VarjoCompanionInterface.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="TrackingLibs\Varjo\VarjoLib.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSHARP.Targets" />
   <ProjectExtensions>

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -54,15 +56,70 @@ namespace VRCFTVarjoModule
 
         private bool LoadLibrary()
         {
-            // absolutely stolen from the main binary
-            string path = GetModuleDir() + "\\VarjoLib.dll";
+            IEnumerable<string> dllPaths = ExtractAssemblies(new string[] { "Varjo.VarjoLib.dll" });
+            var path = dllPaths.First();
+            if (path == null)
+            {
+                Logger.Error(string.Concat("Couldn't extract the library ", path));
+                return false;
+            }
             if (LoadLibrary(path) == IntPtr.Zero)
             {
                 Logger.Error(string.Concat("Unable to load library ", path));
-                return true;
+                return false;
             }
             Logger.Msg(string.Concat("Loaded library ", path));
             return true;
+        }
+
+
+        // I can't ask nicely to add my DLL into the dependency list so I had to steal code from the main repo :(
+        private static IEnumerable<string> ExtractAssemblies(IEnumerable<string> resourceNames)
+        {
+            var extractedPaths = new List<string>();
+
+            var dirName = Path.Combine(Utils.DataDirectory, "StockLibs");
+            if (!Directory.Exists(dirName))
+                Directory.CreateDirectory(dirName);
+
+            foreach (var dll in resourceNames)
+            {
+                var dllPath = Path.Combine(dirName, GetAssemblyNameFromPath(dll));
+
+                using (var stm = Assembly.GetAssembly(typeof(VarjoNativeInterface)).GetManifestResourceStream("VRCFTVarjoModule.TrackingLibs." + dll))
+                {
+                    try
+                    {
+                        using (Stream outFile = File.Create(dllPath))
+                        {
+                            const int sz = 4096;
+                            var buf = new byte[sz];
+                            while (true)
+                            {
+                                if (stm == null) continue;
+                                var nRead = stm.Read(buf, 0, sz);
+                                if (nRead < 1)
+                                    break;
+                                outFile.Write(buf, 0, nRead);
+                            }
+                        }
+
+                        extractedPaths.Add(dllPath);
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Error($"Failed to get DLL: " + e.Message);
+                    }
+                }
+            }
+            return extractedPaths;
+        }
+
+        private static string GetAssemblyNameFromPath(string path)
+        {
+            var splitPath = path.Split('.').ToList();
+            splitPath.Reverse();
+            return splitPath[1] + ".dll";
         }
 
         [DllImport("kernel32", CharSet = CharSet.Unicode, ExactSpelling = false, SetLastError = true)]
