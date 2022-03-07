@@ -47,7 +47,11 @@ namespace VRCFTVarjoModule
             if (_session == IntPtr.Zero)
                 return;
 
-            gazeData = varjo_GetGaze(_session);
+            //gazeData = varjo_GetGaze(_session);
+            bool hasError = varjo_GetGazeData(_session, out gazeData, out eyeMeasurements);
+
+            if (hasError)
+                Logger.Msg("Error while getting Gaze Data");
         }
         public override string GetName()
         {
@@ -151,6 +155,10 @@ namespace VRCFTVarjoModule
 
         [DllImport("VarjoLib", CharSet = CharSet.Auto)]
         private static extern GazeData varjo_GetGaze(IntPtr session);
+
+        // Assuming this is correct? Gaze an Measurement being output as pointers and return value is bool
+        [DllImport("VarjoLib", CharSet = CharSet.Auto)]
+        private static extern bool varjo_GetGazeData(IntPtr session, out GazeData gaze, out EyeMeasurements eyeMeasurements);
 
         [DllImport("VarjoLib", CharSet = CharSet.Auto)]
         private static extern void varjo_RequestGazeCalibration(IntPtr session);

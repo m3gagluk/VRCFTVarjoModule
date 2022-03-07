@@ -61,6 +61,20 @@ namespace VRCFTVarjoModule
 
 
     [StructLayout(LayoutKind.Sequential)]
+    public struct EyeMeasurements
+    {
+        public long captureTime;                    //!< Varjo time when this data was captured, see varjo_GetCurrentTime()
+        public long frameNumber;                    //!< Frame number, increases monotonically.
+        public float leftPupilIrisDiameterRatio;    //!< Ratio between left pupil and left iris.
+        public float rightPupilIrisDiameterRatio;   //!< Ratio between right pupil and right iris.
+        public float leftPupilDiameterInMM;         //!< Left pupil diameter in mm
+        public float rightPupilDiameterInMM;        //!< Right pupil diameter in mm
+        public float leftIrisDiameterInMM;          //!< Left iris diameter in mm
+        public float rightIrisDiameterInMM;         //!< Right iris diameter in mm
+    }
+
+
+    [StructLayout(LayoutKind.Sequential)]
     public struct GazeCalibrationParameter
     {
         [MarshalAs(UnmanagedType.LPStr)] public string key;
@@ -105,10 +119,16 @@ namespace VRCFTVarjoModule
     public abstract class VarjoInterface
     {
         protected GazeData gazeData;
+        protected EyeMeasurements eyeMeasurements;
 
         public GazeData GetGazeData()
         {
             return gazeData;
+        }
+
+        public EyeMeasurements GetEyeMeasurements()
+        {
+            return eyeMeasurements;
         }
 
         public abstract void Teardown();

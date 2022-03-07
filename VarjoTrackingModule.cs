@@ -29,11 +29,13 @@ namespace VRCFTVarjoModule
         }
 
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
-        public static void Update(ref EyeTrackingData data, GazeData external)
+        public static void Update(ref EyeTrackingData data, GazeData external, EyeMeasurements externalMeasurements)
         {
             Update(ref data.Right, external.rightEye, external.rightStatus);
             Update(ref data.Left, external.leftEye, external.leftStatus);
             Update(ref data.Combined, external.gaze);
+
+            Logger.Msg("Status: " + external.leftStatus + "; Iris: " + externalMeasurements.leftIrisDiameterInMM);
 
             // Determines whether the pupil Size/Eye dilation
             // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
@@ -133,7 +135,7 @@ namespace VRCFTVarjoModule
         public void Update()
         {
             tracker.Update();
-            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData());
+            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData(), tracker.GetEyeMeasurements());
         }
 
         // A chance to de-initialize everything. This runs synchronously inside main game thread. Do not touch any Unity objects here.
