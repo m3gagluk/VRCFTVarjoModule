@@ -10,6 +10,12 @@ namespace VRCFTVarjoModule
     // This class contains the overrides for any VRCFT Tracking Data struct functions
     public static class TrackingData
     {
+        // Constants for what the eye dilation range should be; for now, let's assume we want the range of 0..1
+        private const double MIN_DILATION = 0, MAX_DILATION = 1;
+
+        // 2 for min and -1 for max, to ensure these Values get overwritten the first runthrough
+        private static double _minPupilSize = 2, _maxPupilSize = -1;
+
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
         public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
         {
@@ -30,21 +36,54 @@ namespace VRCFTVarjoModule
             Update(ref data.Combined, external.gaze);
 
             // Determines whether the pupil Size/Eye dilation
-            // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one. It's a Hack, but I've confirmed it working @Chickenbread
+            // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
             double pupilSize = 0;
             if (data.Right.Openness == data.Left.Openness)
             {
-                pupilSize = (external.leftPupilSize + external.rightPupilSize) / 0.2;
+                pupilSize = (external.leftPupilSize + external.rightPupilSize) / 2;
             }
             else if (data.Right.Openness > data.Left.Openness)
             {
-                pupilSize = external.rightPupilSize * 10;
+                pupilSize = external.rightPupilSize;
             }
             else
             {
-                pupilSize = external.leftPupilSize * 10;
+                pupilSize = external.leftPupilSize;
             }
-            data.EyesDilation = (float)pupilSize;
+
+            if (pupilSize != 0)
+            {
+                data.EyesDilation = (float)calculateEyeDilation(ref pupilSize);
+            }
+        }
+
+        // This Function is used to calculate the Eye Dilation based on the lowest and highest measured Pupil Size
+        // TODO: Contact Varjo if this is how the data should be treated...
+        private static double calculateEyeDilation(ref double pupilSize)
+        {
+            // Adjust the bounds if Pupil Size actually contains data and exceeds the last thought maximum bounds
+            if (pupilSize > 0)
+            {
+                if (pupilSize > _maxPupilSize)
+                {
+                    _maxPupilSize = pupilSize;
+                }
+                if (pupilSize < _minPupilSize)
+                {
+                    _minPupilSize = pupilSize;
+                }
+            }
+
+            // In Case both max and min are the same, we need to return 0.5; Don't wanna run into a divide by 0 situation ^^"
+            // We also don't want to run the maths if the pupil size bounds haven't been initialized yet...
+            if (_maxPupilSize == _minPupilSize || _maxPupilSize == -1)
+            {
+                return 0.5;
+            }
+
+            // Pretty typical number range convertion.
+            // Takes a Number from Range A (in this case out measured bounds) and converts it into a number from Range B (which is defined by MIN_DILATION and MAX_DILATION)
+            return ((pupilSize - _minPupilSize) * (MAX_DILATION - MIN_DILATION)) / (_maxPupilSize - _minPupilSize) + MIN_DILATION;
         }
 
     }
