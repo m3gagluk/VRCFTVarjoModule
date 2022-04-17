@@ -92,6 +92,11 @@ namespace VRCFTVarjoModule
     {
         private static VarjoInterface tracker;
         private static CancellationTokenSource _cancellationToken;
+        private const bool SupportsEye = true;
+        private const bool SupportsLip = false;
+        // The following values are updated to indicate what functionality is currently being used
+        private bool _utilizingLip = false;
+        private bool _utilizingEye = true;
 
         // Synchronous module initialization. Take as much time as you need to initialize any external modules. This runs in the init-thread
         public (bool eyeSuccess, bool lipSuccess) Initialize(bool eye, bool lip)
@@ -144,8 +149,15 @@ namespace VRCFTVarjoModule
             _cancellationToken.Dispose();
         }
 
-
-        public bool SupportsEye => true;
-        public bool SupportsLip => false;
+        public (bool SupportsEye, bool SupportsLip) Supported => (SupportsEye, SupportsLip);
+        public (bool UtilizingEye, bool UtilizingLip) Utilizing 
+        { 
+            get => (_utilizingEye, _utilizingLip);
+            set
+            {
+                _utilizingEye = value.Item1;
+                _utilizingLip = value.Item2;
+            }
+        }
     }
 }
