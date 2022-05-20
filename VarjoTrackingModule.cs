@@ -20,7 +20,11 @@ namespace VRCFTVarjoModule
         public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
         {
             data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
-            data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
+            data.Openness =
+                eyeStatus == GazeEyeStatus.Tracked ? 1f : (
+                eyeStatus == GazeEyeStatus.Compensated ? 0.5f : (
+                eyeStatus == GazeEyeStatus.Visible ? 0.25f
+                : 0f)); // GazeEyeStatus.Invalid
         }
 
         public static void Update(ref Eye data, GazeRay external)

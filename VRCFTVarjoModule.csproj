@@ -76,9 +76,8 @@
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
-    <Reference Include="VRCFaceTracking, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\osc\VRCFaceTracking\VRCFaceTracking.exe</HintPath>
+    <Reference Include="VRCFaceTracking">
+      <HintPath>C:\Users\14695\Downloads\VRCFaceTracking.exe</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
