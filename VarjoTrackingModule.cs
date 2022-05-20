@@ -90,13 +90,15 @@ namespace VRCFTVarjoModule
 
     }
     
-    public class VarjoTrackingModule : ITrackingModule
+    public class VarjoTrackingModule : ExtTrackingModule 
     {
         private static VarjoInterface tracker;
         private static CancellationTokenSource _cancellationToken;
+        public override (bool SupportsEye, bool SupportsLip) Supported => (true, false);
+        public override (bool UtilizingEye, bool UtilizingLip) Utilizing { get; set; }
 
         // Synchronous module initialization. Take as much time as you need to initialize any external modules. This runs in the init-thread
-        public (bool eyeSuccess, bool lipSuccess) Initialize(bool eye, bool lip)
+        public override (bool eyeSuccess, bool lipSuccess) Initialize(bool eye, bool lip)
         {
             if (IsStandalone())
             {
@@ -118,7 +120,7 @@ namespace VRCFTVarjoModule
         }
 
         // This will be run in the tracking thread. This is exposed so you can control when and if the tracking data is updated down to the lowest level.
-        public Action GetUpdateThreadFunc()
+        public override Action GetUpdateThreadFunc()
         {
             _cancellationToken = new CancellationTokenSource();
             return () =>
@@ -132,22 +134,18 @@ namespace VRCFTVarjoModule
         }
 
         // The update function needs to be defined separately in case the user is running with the --vrcft-nothread launch parameter
-        public void Update()
+        public override void Update()
         {
             tracker.Update();
             TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData(), tracker.GetEyeMeasurements());
         }
 
         // A chance to de-initialize everything. This runs synchronously inside main game thread. Do not touch any Unity objects here.
-        public void Teardown()
+        public override void Teardown()
         {
             _cancellationToken.Cancel();
             tracker.Teardown();
             _cancellationToken.Dispose();
         }
-
-
-        public bool SupportsEye => true;
-        public bool SupportsLip => false;
     }
 }
