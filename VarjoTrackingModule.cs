@@ -10,6 +10,10 @@ namespace VRCFTVarjoModule
     // This class contains the overrides for any VRCFT Tracking Data struct functions
     public static class TrackingData
     {
+        public const int DELTA = 10;
+        private const float lerpDelta = 0.002f; // DELTA * 2 * 0.001
+        private static float intermediate = 0f;
+
         // Constants for what the eye dilation range should be; for now, let's assume we want the range of 0..1
         private const double MIN_DILATION = 0, MAX_DILATION = 1;
 
@@ -20,11 +24,24 @@ namespace VRCFTVarjoModule
         public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
         {
             data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
-            data.Openness =
-                eyeStatus == GazeEyeStatus.Tracked ? 1f : (
-                eyeStatus == GazeEyeStatus.Compensated ? 0.5f : (
-                eyeStatus == GazeEyeStatus.Visible ? 0.25f
-                : 0f)); // GazeEyeStatus.Invalid
+            data.Openness = 
+                SmoothLerp(ref data,
+                    eyeStatus == GazeEyeStatus.Tracked ? 1f : (
+                    eyeStatus == GazeEyeStatus.Compensated ? 0.5f : (
+                    eyeStatus == GazeEyeStatus.Visible ? 0.25f
+                    : 0f)), // GazeEyeStatus.Invalid
+                ref intermediate); 
+        }
+
+        // SmoothLerp smoothing
+        public static float SmoothLerp(ref Eye data, float target, ref float intermediate)
+        {
+            intermediate = Lerp(intermediate, target);
+            return Lerp(data.Openness, intermediate);
+        }
+        public static float Lerp(float a, float b)
+        {
+            return a + (b - a) * lerpDelta;
         }
 
         public static void Update(ref Eye data, GazeRay external)
@@ -130,7 +147,7 @@ namespace VRCFTVarjoModule
                 while (!_cancellationToken.IsCancellationRequested)
                 {
                     Update();
-                    Thread.Sleep(10);
+                    Thread.Sleep(TrackingData.DELTA);
                 }
             };
         }
