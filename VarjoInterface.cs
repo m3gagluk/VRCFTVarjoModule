@@ -63,8 +63,9 @@ namespace VRCFTVarjoModule
     [StructLayout(LayoutKind.Sequential)]
     public struct EyeMeasurements
     {
-        public long captureTime;                    //!< Varjo time when this data was captured, see varjo_GetCurrentTime()
         public long frameNumber;                    //!< Frame number, increases monotonically.
+        public long captureTime;                    //!< Varjo time when this data was captured, see varjo_GetCurrentTime()
+        public float interPupillaryDistanceInMM;    //!< Estimated IPD in millimeters
         public float leftPupilIrisDiameterRatio;    //!< Ratio between left pupil and left iris.
         public float rightPupilIrisDiameterRatio;   //!< Ratio between right pupil and right iris.
         public float leftPupilDiameterInMM;         //!< Left pupil diameter in mm
