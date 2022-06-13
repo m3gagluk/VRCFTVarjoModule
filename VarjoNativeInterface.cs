@@ -47,7 +47,12 @@ namespace VRCFTVarjoModule
             if (_session == IntPtr.Zero)
                 return;
 
-            gazeData = varjo_GetGaze(_session);
+            // Get's GazeData and EyeMeasurements from the Varjo SDK
+            // Return value states whether or not the request was successful (true = has Data; false = Error occured)
+            bool hasData = varjo_GetGazeData(_session, out gazeData, out eyeMeasurements);
+
+            if (!hasData)
+                Logger.Msg("Error while getting Gaze Data");
         }
         public override string GetName()
         {
@@ -151,6 +156,9 @@ namespace VRCFTVarjoModule
 
         [DllImport("VarjoLib", CharSet = CharSet.Auto)]
         private static extern GazeData varjo_GetGaze(IntPtr session);
+
+        [DllImport("VarjoLib", CharSet = CharSet.Auto)]
+        private static extern bool varjo_GetGazeData(IntPtr session, out GazeData gaze, out EyeMeasurements eyeMeasurements);
 
         [DllImport("VarjoLib", CharSet = CharSet.Auto)]
         private static extern void varjo_RequestGazeCalibration(IntPtr session);
