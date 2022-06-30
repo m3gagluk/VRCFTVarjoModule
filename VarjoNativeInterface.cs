@@ -39,7 +39,7 @@ namespace VRCFTVarjoModule
 
         public override void Teardown()
         {
-            throw new NotImplementedException();
+            //no need to tear down anything right?
         }
 
         public override void Update()
@@ -83,7 +83,7 @@ namespace VRCFTVarjoModule
         {
             var extractedPaths = new List<string>();
 
-            var dirName = Path.Combine(Utils.DataDirectory, "StockLibs");
+            var dirName = Path.Combine(Utils.PersistentDataDirectory, "StockLibs");
             if (!Directory.Exists(dirName))
                 Directory.CreateDirectory(dirName);
 

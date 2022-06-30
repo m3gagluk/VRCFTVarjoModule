@@ -1,4 +1,7 @@
 ﻿using System;
+using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
 using System.Threading;
 using VRCFaceTracking;
 using VRCFaceTracking.Params;
@@ -87,8 +90,15 @@ namespace VRCFTVarjoModule
     {
         private static VarjoInterface tracker;
         private static CancellationTokenSource _cancellationToken;
+
+
+        // eye image stuff
+        private MemoryMappedFile MemMapFile;
+        private MemoryMappedViewAccessor ViewAccessor;
+        private IntPtr EyeImagePointer;
+        
+
         public override (bool SupportsEye, bool SupportsLip) Supported => (true, false);
-        public override (bool UtilizingEye, bool UtilizingLip) Utilizing { get; set; }
 
         // Synchronous module initialization. Take as much time as you need to initialize any external modules. This runs in the init-thread
         public override (bool eyeSuccess, bool lipSuccess) Initialize(bool eye, bool lip)
@@ -103,6 +113,26 @@ namespace VRCFTVarjoModule
             }
             Logger.Msg(string.Format("Initializing {0} Varjo module", tracker.GetName()));
             bool pipeConnected = tracker.Initialize();
+            if (pipeConnected)
+            {
+                unsafe
+                {
+                    try
+                    {
+                        MemMapFile = MemoryMappedFile.OpenExisting("Global\\VarjoTrackerInfo");
+                        ViewAccessor = MemMapFile.CreateViewAccessor();
+                        byte* ptr = null;
+                        ViewAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                        EyeImagePointer = new IntPtr(ptr);
+                        UnifiedTrackingData.LatestEyeData.SupportsImage = true;
+                        UnifiedTrackingData.LatestEyeData.ImageSize = (2560, 800);
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        Logger.Warning("Varjo camera mapped file doesn't exist; is Varjo Base running?");
+                    }
+                }
+            }
             return (pipeConnected, false);
         }
 
@@ -126,11 +156,25 @@ namespace VRCFTVarjoModule
             };
         }
 
+        private unsafe void UpdateEyeImage()
+        {
+            if (MemMapFile == null || EyeImagePointer == null || !UnifiedTrackingData.LatestEyeData.SupportsImage)
+            {
+                return;
+            }
+            if (UnifiedTrackingData.LatestEyeData.ImageData == null)
+            {
+                UnifiedTrackingData.LatestEyeData.ImageData = new byte[2560 * 800];
+            }
+            Marshal.Copy(EyeImagePointer, UnifiedTrackingData.LatestEyeData.ImageData, 0, 2560*800);
+        }
+
         // The update function needs to be defined separately in case the user is running with the --vrcft-nothread launch parameter
-        public override void Update()
+        public void Update()
         {
             tracker.Update();
             TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData(), tracker.GetEyeMeasurements());
+            UpdateEyeImage();
         }
 
         // A chance to de-initialize everything. This runs synchronously inside main game thread. Do not touch any Unity objects here.
@@ -138,6 +182,7 @@ namespace VRCFTVarjoModule
         {
             _cancellationToken.Cancel();
             tracker.Teardown();
+            ViewAccessor.SafeMemoryMappedViewHandle.ReleasePointer();
             _cancellationToken.Dispose();
         }
     }

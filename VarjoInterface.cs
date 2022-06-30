@@ -140,7 +140,7 @@ namespace VRCFTVarjoModule
 
         protected string GetModuleDir()
         {
-            return Utils.DataDirectory + "\\CustomLibs\\Varjo";
+            return Utils.PersistentDataDirectory + "\\CustomLibs\\Varjo";
         }
 
         protected bool VarjoAvailable()
@@ -148,7 +148,7 @@ namespace VRCFTVarjoModule
             // totally not how the official Varjo library works under the hood
             return File.Exists("\\\\.\\pipe\\Varjo\\InfoService");
         }
-
+        
     }
 
 
