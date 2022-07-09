@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using VRCFaceTracking;
@@ -9,7 +11,14 @@ using Vector2 = VRCFaceTracking.Params.Vector2;
 
 namespace VRCFTVarjoModule
 {
-   
+    // Eye data that gets received from the eye openness app
+    public struct AdditionalEyeData
+    {
+        public bool UseData;
+        public float Openness;
+        public float Squeeze;
+    }
+
     // This class contains the overrides for any VRCFT Tracking Data struct functions
     public static class TrackingData
     {
@@ -17,23 +26,51 @@ namespace VRCFTVarjoModule
         private static double _minPupilSize = 999, _maxPupilSize = -1;
 
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
-        public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
+        public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus, AdditionalEyeData eyeData)
         {
-            data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
-            data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
+            // use legacy eye openness tracking
+            if (!eyeData.UseData)
+            {
+                data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+                data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
+                return;
+            }
+
+            data.Openness = eyeData.Openness;
+            if (data.Openness < 0.1)
+                data.Squeeze = eyeData.Squeeze;
+            else
+                data.Squeeze = 0;
+            //Eye tracking gets crazy if the eye is partially closed, I'm going to profide heavily filtered data there
+            if (eyeData.Openness > 0 && eyeData.Openness < 1)
+            {
+                //Logger.Msg(string.Format("X {0} Y {1}", external.forward.x, external.forward.y));
+                if (external.forward.x == 0 && Math.Abs(data.Look.x - external.forward.x) > 0.1)
+                {
+                    // don't update with bogus data at all
+                    return;
+                }
+                float newX = (float) external.forward.x + 0.4F + data.Look.x * 0.6F;
+                float newY = (float) external.forward.y + 0.4F + data.Look.y * 0.6F;
+                data.Look = new Vector2(newX, newY);   
+            }
+            // update normally
+            data.Look.x = (float)external.forward.x;
+            data.Look.y = (float)external.forward.y;
         }
 
-        public static void Update(ref Eye data, GazeRay external)
+        public static void Update(ref Eye data, GazeRay external, float openness)
         {
             data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+            data.Openness = openness;
         }
 
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
-        public static void Update(ref EyeTrackingData data, GazeData external, EyeMeasurements externalMeasurements)
+        public static void Update(ref EyeTrackingData data, GazeData external, EyeMeasurements externalMeasurements, AdditionalEyeData leftData, AdditionalEyeData rightData)
         {
-            Update(ref data.Right, external.rightEye, external.rightStatus);
-            Update(ref data.Left, external.leftEye, external.leftStatus);
-            Update(ref data.Combined, external.gaze);
+            Update(ref data.Left, external.leftEye, external.leftStatus, leftData);
+            Update(ref data.Right, external.rightEye, external.rightStatus, rightData);
+            Update(ref data.Combined, external.gaze, Math.Min(data.Left.Openness, data.Right.Openness));
 
             // Determines whether the pupil Size/Eye dilation
             // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
@@ -96,7 +133,13 @@ namespace VRCFTVarjoModule
         private MemoryMappedFile MemMapFile;
         private MemoryMappedViewAccessor ViewAccessor;
         private IntPtr EyeImagePointer;
+
+        private UdpClient receiver;
+        private AdditionalEyeData LeftEye = new AdditionalEyeData();
+        private AdditionalEyeData RightEye = new AdditionalEyeData();
         
+        // An UDP port for receiver eye data from the separate eye openness app (until we get a proper eye openness API)
+        private static int ReceiverPort = 20000;
 
         public override (bool SupportsEye, bool SupportsLip) Supported => (true, false);
 
@@ -132,6 +175,9 @@ namespace VRCFTVarjoModule
                         Logger.Warning("Varjo camera mapped file doesn't exist; is Varjo Base running?");
                     }
                 }
+                // Create UDP client
+                receiver = new UdpClient(ReceiverPort);
+                receiver.BeginReceive(DataReceived, receiver);
             }
             return (pipeConnected, false);
         }
@@ -173,7 +219,7 @@ namespace VRCFTVarjoModule
         public void Update()
         {
             tracker.Update();
-            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData(), tracker.GetEyeMeasurements());
+            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData(), tracker.GetEyeMeasurements(), LeftEye, RightEye);
             UpdateEyeImage();
         }
 
@@ -184,6 +230,24 @@ namespace VRCFTVarjoModule
             tracker.Teardown();
             ViewAccessor.SafeMemoryMappedViewHandle.ReleasePointer();
             _cancellationToken.Dispose();
+            receiver.Dispose();
+        }
+
+        private void DataReceived(IAsyncResult ar)
+        {
+            UdpClient c = (UdpClient)ar.AsyncState;
+            IPEndPoint receivedIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            byte[] receivedBytes = c.EndReceive(ar, ref receivedIpEndPoint);
+            LeftEye.Openness = BitConverter.ToSingle(receivedBytes, 0);
+            RightEye.Openness = BitConverter.ToSingle(receivedBytes, 4);
+            LeftEye.Squeeze = BitConverter.ToSingle(receivedBytes, 8);
+            RightEye.Squeeze = BitConverter.ToSingle(receivedBytes, 12);
+
+            LeftEye.UseData = true;
+            RightEye.UseData = true;
+
+            // Restart listening for udp data packages
+            c.BeginReceive(DataReceived, ar.AsyncState);
         }
     }
 }
