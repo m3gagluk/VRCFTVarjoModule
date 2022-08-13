@@ -57,6 +57,8 @@ namespace VRCFTVarjoModule
             {
                 data.EyesDilation = (float)calculateEyeDilation(ref pupilSize);
             }
+            // Set the Pupil Diameter anyways
+            data.EyesPupilDiameter = (float)(pupilSize > 10 ? 1 : pupilSize / 10);
         }
 
         // This Function is used to calculate the Eye Dilation based on the lowest and highest measured Pupil Size
