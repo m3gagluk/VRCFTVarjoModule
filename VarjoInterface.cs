@@ -72,6 +72,8 @@ namespace VRCFTVarjoModule
         public float rightPupilDiameterInMM;        //!< Right pupil diameter in mm
         public float leftIrisDiameterInMM;          //!< Left iris diameter in mm
         public float rightIrisDiameterInMM;         //!< Right iris diameter in mm
+        public float leftEyeOpenness;               //!< Left Eye Openness
+        public float rightEyeOpenness;              //!< Right Eye Openness
     }
 
 

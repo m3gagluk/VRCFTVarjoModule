@@ -17,23 +17,30 @@ namespace VRCFTVarjoModule
         private static double _minPupilSize = 999, _maxPupilSize = -1;
 
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
-        public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
+        public static void Update(ref Eye data, GazeRay external, float openness, GazeEyeStatus eyeStatus)
         {
-            data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
-            data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
+            if ((int)eyeStatus >= 2)
+            {
+                data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+            }
+
+            parseOpenness(ref data, openness);
         }
 
-        public static void Update(ref Eye data, GazeRay external)
+        public static void Update(ref Eye data, GazeRay external, float openness)
         {
             data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+
+            parseOpenness(ref data, openness);
         }
 
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
         public static void Update(ref EyeTrackingData data, GazeData external, EyeMeasurements externalMeasurements)
         {
-            Update(ref data.Right, external.rightEye, external.rightStatus);
-            Update(ref data.Left, external.leftEye, external.leftStatus);
-            Update(ref data.Combined, external.gaze);
+            // VRCFaceTracking.Logger.Msg("Left Eye Openness: " + externalMeasurements.leftEyeOpenness + " | Right Eye Openness: " + externalMeasurements.rightEyeOpenness);
+            Update(ref data.Right, external.rightEye, externalMeasurements.rightEyeOpenness, external.rightStatus);
+            Update(ref data.Left, external.leftEye, externalMeasurements.leftEyeOpenness, external.leftStatus);
+            Update(ref data.Combined, external.gaze, (externalMeasurements.leftEyeOpenness + externalMeasurements.rightEyeOpenness) / 2);
 
             // Determines whether the pupil Size/Eye dilation
             // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
@@ -82,6 +89,29 @@ namespace VRCFTVarjoModule
             // Pretty typical number range convertion.
             // We assume we want 1 for max dilation and 0 for min dilation; simplifies the maths a bit
             return (pupilSize - _minPupilSize) / (_maxPupilSize - _minPupilSize);
+        }
+
+        private static void parseOpenness(ref Eye data, float openness)
+        {
+            data.Openness = Math.Min((openness - 0.15f) / 0.8f, 1);
+
+            if (openness <= 0.15f)
+            {
+                data.Squeeze = (openness / -0.15f) + 1;
+            }
+            else
+            {
+                data.Squeeze = 0;
+            }
+
+            if (openness > 0.95f)
+            {
+                data.Widen = (openness - 0.95f) / 0.05f;
+            }
+            else
+            {
+                data.Widen = 0;
+            }
         }
 
     }
