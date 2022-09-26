@@ -16,7 +16,46 @@ namespace VRCFTVarjoModule
         // 2 for min and -1 for max, to ensure these Values get overwritten the first runthrough
         private static double _minPupilSize = 999, _maxPupilSize = -1;
 
+        // Raw values after those thresholds will be converted into matching blendshapes instead of simple eye openness
+        private static readonly double SQUEEZE_THRESHOLD = 0.015;
+        private static readonly double WIDEN_THRESHOLD = 0.95;
+        // A blink detection heuristic; if eye isn't considered as tracked but eye openness value is high because of the filter then the eye is blinking
+        private static readonly double BLINK_THRESHOLD = 0.75;
+    
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
+        public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus, float openness)
+        {
+            if (eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated){
+                // only update eye look vector when the eye is actually tracked;
+                // TODO put a real filter there to compensate the jerkiness
+                data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
+            }
+            float newOpenness = 0, widen = 0, squeeze = 0;
+            if (eyeStatus == GazeEyeStatus.Invalid && openness > BLINK_THRESHOLD)
+            {
+                // the eye is probably completely closed or is blinking, noop
+            }
+            else if (openness > WIDEN_THRESHOLD)
+            {
+                // eye widened
+                widen = (float)(openness - WIDEN_THRESHOLD);
+                newOpenness = 1;
+            }
+            else if (openness < SQUEEZE_THRESHOLD)
+            {
+                // eye squeezed
+                squeeze = (float)(SQUEEZE_THRESHOLD - openness);
+            }
+            else
+            {
+                // eye normally opened or half-closed
+                newOpenness = openness;
+            }
+            data.Openness = newOpenness;
+            data.Widen = widen;
+            data.Squeeze = squeeze;
+        }
+
         public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
         {
             data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
@@ -31,9 +70,11 @@ namespace VRCFTVarjoModule
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
         public static void Update(ref EyeTrackingData data, GazeData external, EyeMeasurements externalMeasurements)
         {
-            Update(ref data.Right, external.rightEye, external.rightStatus);
-            Update(ref data.Left, external.leftEye, external.leftStatus);
+            Update(ref data.Right, external.rightEye, external.rightStatus, externalMeasurements.rightEyeOpenness);
+            Update(ref data.Left, external.leftEye, external.leftStatus, externalMeasurements.leftEyeOpenness);
             Update(ref data.Combined, external.gaze);
+            Logger.Msg("Left openness " + externalMeasurements.leftEyeOpenness);
+            Logger.Msg("Right openness " + externalMeasurements.rightEyeOpenness);
 
             // Determines whether the pupil Size/Eye dilation
             // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
