@@ -31,9 +31,12 @@ namespace VRCFTVarjoModule
             parseOpenness(ref data, openness);
         }
 
-        public static void Update(ref Eye data, GazeRay external, float openness)
+        public static void Update(ref Eye data, GazeRay external, float openness, GazeStatus combinedStatus)
         {
-            data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+            if (combinedStatus == GazeStatus.Valid)
+            {
+                data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+            }
 
             parseOpenness(ref data, openness);
         }
@@ -41,34 +44,31 @@ namespace VRCFTVarjoModule
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
         public static void Update(ref EyeTrackingData data, GazeData external, EyeMeasurements externalMeasurements)
         {
-            if (external.status == GazeStatus.Valid)
+            Update(ref data.Right, external.rightEye, externalMeasurements.rightEyeOpenness, external.rightStatus);
+            Update(ref data.Left, external.leftEye, externalMeasurements.leftEyeOpenness, external.leftStatus);
+            Update(ref data.Combined, external.gaze, (externalMeasurements.leftEyeOpenness + externalMeasurements.rightEyeOpenness) / 2, external.status);
+
+            // Determines whether the pupil Size/Eye dilation
+            // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
+            double pupilSize = 0;
+            // Casting the status as ints allows for easier comparison; as we need Compensated (2) or Tracked (3), that means >= 2
+            if ((int)external.leftStatus >= 2 && (int)external.rightStatus >= 2)
             {
-                Update(ref data.Right, external.rightEye, externalMeasurements.rightEyeOpenness, external.rightStatus);
-                Update(ref data.Left, external.leftEye, externalMeasurements.leftEyeOpenness, external.leftStatus);
-                Update(ref data.Combined, external.gaze, (externalMeasurements.leftEyeOpenness + externalMeasurements.rightEyeOpenness) / 2);
+                pupilSize = (externalMeasurements.leftPupilDiameterInMM + externalMeasurements.rightPupilDiameterInMM) / 2;
+            }
+            else if ((int)external.rightStatus >= 2)
+            {
+                pupilSize = externalMeasurements.rightPupilDiameterInMM;
+            }
+            else if ((int)external.leftStatus >= 2)
+            {
+                pupilSize = externalMeasurements.leftPupilDiameterInMM;
+            }
 
-                // Determines whether the pupil Size/Eye dilation
-                // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
-                double pupilSize = 0;
-                // Casting the status as ints allows for easier comparison; as we need Compensated (2) or Tracked (3), that means >= 2
-                if ((int)external.leftStatus >= 2 && (int)external.rightStatus >= 2)
-                {
-                    pupilSize = (externalMeasurements.leftPupilDiameterInMM + externalMeasurements.rightPupilDiameterInMM) / 2;
-                }
-                else if ((int)external.rightStatus >= 2)
-                {
-                    pupilSize = externalMeasurements.rightPupilDiameterInMM;
-                }
-                else if ((int)external.leftStatus >= 2)
-                {
-                    pupilSize = externalMeasurements.leftPupilDiameterInMM;
-                }
-
-                // Only set the Eye Dilation, if we actually have Pupil data
-                if (pupilSize > 0)
-                {
-                    data.EyesDilation = (float)calculateEyeDilation(ref pupilSize);
-                }
+            // Only set the Eye Dilation, if we actually have Pupil data
+            if (pupilSize > 0 && external.status == GazeStatus.Valid)
+            {
+                data.EyesDilation = (float)calculateEyeDilation(ref pupilSize);
             }
         }
 
