@@ -15,7 +15,7 @@ namespace VRCFTVarjoModule
     {
         // Magic numbers to disect the 0-1 Varjo Openness float into SRanipal Openness, Widen & Squeeze values
         // Based on Testing from @Chickenbread; may need adjusting
-        private static readonly float EYE_SQUEEZE_THRESHOLD = 0.10f, EYE_WIDEN_THRESHOLD = 0.90f;
+        private static readonly float EYE_SQUEEZE_THRESHOLD = 0.15f, EYE_WIDEN_THRESHOLD = 0.90f;
 
         // 999 for min and -1 for max, to ensure these Values get overwritten the first runthrough
         private static double _minPupilSize = 999, _maxPupilSize = -1;
