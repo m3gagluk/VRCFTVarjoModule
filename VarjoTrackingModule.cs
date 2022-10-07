@@ -20,7 +20,7 @@ namespace VRCFTVarjoModule
         private static readonly double SQUEEZE_THRESHOLD = 0.015;
         private static readonly double WIDEN_THRESHOLD = 0.95;
         // A blink detection heuristic; if eye isn't considered as tracked but eye openness value is high because of the filter then the eye is blinking
-        private static readonly double BLINK_THRESHOLD = 0.75;
+        private static readonly double BLINK_THRESHOLD = 0.5;
     
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
         public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus, float openness)
@@ -31,25 +31,25 @@ namespace VRCFTVarjoModule
                 data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
             }
             float newOpenness = 0, widen = 0, squeeze = 0;
-            if (eyeStatus == GazeEyeStatus.Invalid && openness > BLINK_THRESHOLD)
+            if (eyeStatus == GazeEyeStatus.Invalid/* && openness > BLINK_THRESHOLD*/)
             {
-                // the eye is probably completely closed or is blinking, noop
+                // the eye is probably completely closed or is blinking, all zeros
             }
             else if (openness > WIDEN_THRESHOLD)
             {
-                // eye widened
-                widen = (float)(openness - WIDEN_THRESHOLD);
+                // eye widened and scaled to extremes
+                widen = (float)((openness - WIDEN_THRESHOLD)/(1-WIDEN_THRESHOLD));
                 newOpenness = 1;
             }
             else if (openness < SQUEEZE_THRESHOLD)
             {
                 // eye squeezed
-                squeeze = (float)(SQUEEZE_THRESHOLD - openness);
+                squeeze = (float)((SQUEEZE_THRESHOLD - openness)/(1-SQUEEZE_THRESHOLD));
             }
             else
             {
                 // eye normally opened or half-closed
-                newOpenness = openness;
+                newOpenness = (float)(openness/(WIDEN_THRESHOLD-SQUEEZE_THRESHOLD-));
             }
             data.Openness = newOpenness;
             data.Widen = widen;
@@ -127,7 +127,13 @@ namespace VRCFTVarjoModule
             return (pupilSize - _minPupilSize) / (_maxPupilSize - _minPupilSize);
         }
 
-    }
+        // This function is supposed to make eye openness values a bit more noticeable
+        private static float EaseInOutSine(double x)
+        {
+            return (float)-(Math.Cos(Math.PI* x) - 1) / 2;
+        }
+
+}
     
     public class VarjoTrackingModule : ExtTrackingModule 
     {
@@ -139,7 +145,10 @@ namespace VRCFTVarjoModule
         private MemoryMappedFile MemMapFile;
         private MemoryMappedViewAccessor ViewAccessor;
         private IntPtr EyeImagePointer;
-        
+
+        private static int EyeCameraWidth = 400;
+        private static int EyeCameraHeight = 640*2;
+
 
         public override (bool SupportsEye, bool SupportsLip) Supported => (true, false);
 
@@ -168,7 +177,10 @@ namespace VRCFTVarjoModule
                         ViewAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
                         EyeImagePointer = new IntPtr(ptr);
                         UnifiedTrackingData.LatestEyeData.SupportsImage = true;
-                        UnifiedTrackingData.LatestEyeData.ImageSize = (2560, 800);
+
+                        EyeCameraWidth = 2560;
+                        EyeCameraHeight = 800;
+                        UnifiedTrackingData.LatestEyeData.ImageSize = (EyeCameraWidth, EyeCameraHeight);
                     }
                     catch (FileNotFoundException)
                     {
@@ -207,9 +219,9 @@ namespace VRCFTVarjoModule
             }
             if (UnifiedTrackingData.LatestEyeData.ImageData == null)
             {
-                UnifiedTrackingData.LatestEyeData.ImageData = new byte[2560 * 800];
+                UnifiedTrackingData.LatestEyeData.ImageData = new byte[EyeCameraWidth * EyeCameraHeight];
             }
-            Marshal.Copy(EyeImagePointer, UnifiedTrackingData.LatestEyeData.ImageData, 0, 2560*800);
+            Marshal.Copy(EyeImagePointer, UnifiedTrackingData.LatestEyeData.ImageData, 0, EyeCameraWidth * EyeCameraHeight);
         }
 
         // The update function needs to be defined separately in case the user is running with the --vrcft-nothread launch parameter
