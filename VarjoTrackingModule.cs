@@ -13,27 +13,40 @@ namespace VRCFTVarjoModule
     // This class contains the overrides for any VRCFT Tracking Data struct functions
     public static class TrackingData
     {
-        // 2 for min and -1 for max, to ensure these Values get overwritten the first runthrough
+        // Magic numbers to disect the 0-1 Varjo Openness float into SRanipal Openness, Widen & Squeeze values
+        // Based on Testing from @Chickenbread; may need adjusting
+        private static readonly float EYE_SQUEEZE_THRESHOLD = 0.15f, EYE_WIDEN_THRESHOLD = 0.90f;
+
+        // 999 for min and -1 for max, to ensure these Values get overwritten the first runthrough
         private static double _minPupilSize = 999, _maxPupilSize = -1;
 
         // This function parses the external module's single-eye data into a VRCFT-Parseable format
-        public static void Update(ref Eye data, GazeRay external, GazeEyeStatus eyeStatus)
+        public static void Update(ref Eye data, GazeRay external, float openness, GazeEyeStatus eyeStatus)
         {
-            data.Look = new Vector2((float) external.forward.x, (float) external.forward.y);
-            data.Openness = eyeStatus == GazeEyeStatus.Tracked || eyeStatus == GazeEyeStatus.Compensated ? 1F : 0F;
+            if ((int)eyeStatus >= 2)
+            {
+                data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+            }
+
+            parseOpenness(ref data, openness);
         }
 
-        public static void Update(ref Eye data, GazeRay external)
+        public static void Update(ref Eye data, GazeRay external, float openness, GazeStatus combinedStatus)
         {
-            data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+            if (combinedStatus == GazeStatus.Valid)
+            {
+                data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
+            }
+
+            parseOpenness(ref data, openness);
         }
 
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
         public static void Update(ref EyeTrackingData data, GazeData external, EyeMeasurements externalMeasurements)
         {
-            Update(ref data.Right, external.rightEye, external.rightStatus);
-            Update(ref data.Left, external.leftEye, external.leftStatus);
-            Update(ref data.Combined, external.gaze);
+            Update(ref data.Right, external.rightEye, externalMeasurements.rightEyeOpenness, external.rightStatus);
+            Update(ref data.Left, external.leftEye, externalMeasurements.leftEyeOpenness, external.leftStatus);
+            Update(ref data.Combined, external.gaze, (externalMeasurements.leftEyeOpenness + externalMeasurements.rightEyeOpenness) / 2, external.status);
 
             // Determines whether the pupil Size/Eye dilation
             // If one is open and the other closed, we don't want the closed one to pull down the Values of the open one.
@@ -53,7 +66,7 @@ namespace VRCFTVarjoModule
             }
 
             // Only set the Eye Dilation, if we actually have Pupil data
-            if (pupilSize > 0)
+            if (pupilSize > 0 && external.status == GazeStatus.Valid)
             {
                 data.EyesDilation = (float)calculateEyeDilation(ref pupilSize);
             }
@@ -61,7 +74,7 @@ namespace VRCFTVarjoModule
             data.EyesPupilDiameter = (float)(pupilSize > 10 ? 1 : pupilSize / 10);
         }
 
-        // This Function is used to calculate the Eye Dilation based on the lowest and highest measured Pupil Size
+        // This function is used to calculate the Eye Dilation based on the lowest and highest measured Pupil Size
         private static double calculateEyeDilation(ref double pupilSize)
         {
             // Adjust the bounds if Pupil Size exceeds the last thought maximum bounds
@@ -84,6 +97,30 @@ namespace VRCFTVarjoModule
             // Pretty typical number range convertion.
             // We assume we want 1 for max dilation and 0 for min dilation; simplifies the maths a bit
             return (pupilSize - _minPupilSize) / (_maxPupilSize - _minPupilSize);
+        }
+
+        // This function is used to disect the single Varjo Openness Float into the SRanipal Openness, Widen & Squeeze values
+        // As the three SRanipal Parameters are exclusive to one another (if one is between 0 or 1, the others have to be either 0 or 1), we only need to do maths for one parameter
+        private static void parseOpenness(ref Eye data, float openness)
+        {
+            if (openness <= EYE_SQUEEZE_THRESHOLD)
+            {
+                data.Squeeze = (openness / -EYE_SQUEEZE_THRESHOLD) + 1;
+                data.Openness = 0;
+                data.Widen = 0;
+            }
+            else if (openness >= EYE_WIDEN_THRESHOLD)
+            {
+                data.Squeeze = 0;
+                data.Openness = 1;
+                data.Widen = (openness - EYE_WIDEN_THRESHOLD) / (1 - EYE_WIDEN_THRESHOLD);
+            }
+            else
+            {
+                data.Squeeze = 0;
+                data.Openness = (openness - EYE_SQUEEZE_THRESHOLD) / (EYE_WIDEN_THRESHOLD - EYE_SQUEEZE_THRESHOLD);
+                data.Widen = 0;
+            }
         }
 
     }
@@ -174,8 +211,11 @@ namespace VRCFTVarjoModule
         // The update function needs to be defined separately in case the user is running with the --vrcft-nothread launch parameter
         public void Update()
         {
-            tracker.Update();
-            TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData(), tracker.GetEyeMeasurements());
+            if (Status.EyeState == ModuleState.Active)
+            {
+                tracker.Update();
+                TrackingData.Update(ref UnifiedTrackingData.LatestEyeData, tracker.GetGazeData(), tracker.GetEyeMeasurements());
+            }
             UpdateEyeImage();
         }
 
