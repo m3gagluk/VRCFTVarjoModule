@@ -13,9 +13,18 @@ namespace VRCFTVarjoModule
     // This class contains the overrides for any VRCFT Tracking Data struct functions
     public static class TrackingData
     {
+        enum VarjoOpennessMode : byte
+        {
+            Squeeze = 0,
+            Openness = 1,
+            Widen = 2
+        }
+
         // Magic numbers to disect the 0-1 Varjo Openness float into SRanipal Openness, Widen & Squeeze values
         // Based on Testing from @Chickenbread; may need adjusting
         private static readonly float EYE_SQUEEZE_THRESHOLD = 0.15f, EYE_WIDEN_THRESHOLD = 0.90f;
+        // Threshold of the maximum opening in Eye Openness that will be tracked as long as the eye status is "invalid"
+        private static readonly float MAX_OPENNESS_DEVIATION = 0.1f;
 
         // 999 for min and -1 for max, to ensure these Values get overwritten the first runthrough
         private static double _minPupilSize = 999, _maxPupilSize = -1;
@@ -28,7 +37,7 @@ namespace VRCFTVarjoModule
                 data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
             }
 
-            parseOpenness(ref data, openness);
+            parseOpenness(ref data, openness, eyeStatus >= GazeEyeStatus.Compensated);
         }
 
         public static void Update(ref Eye data, GazeRay external, float openness, GazeStatus combinedStatus)
@@ -38,7 +47,7 @@ namespace VRCFTVarjoModule
                 data.Look = new Vector2((float)external.forward.x, (float)external.forward.y);
             }
 
-            parseOpenness(ref data, openness);
+            parseOpenness(ref data, openness, combinedStatus != GazeStatus.Invalid);
         }
 
         // This function parses the external module's full-data data into multiple VRCFT-Parseable single-eye structs
@@ -101,25 +110,47 @@ namespace VRCFTVarjoModule
 
         // This function is used to disect the single Varjo Openness Float into the SRanipal Openness, Widen & Squeeze values
         // As the three SRanipal Parameters are exclusive to one another (if one is between 0 or 1, the others have to be either 0 or 1), we only need to do maths for one parameter
-        private static void parseOpenness(ref Eye data, float openness)
+        private static void parseOpenness(ref Eye data, float openness, bool trackingValid)
         {
+            float srOpenness;
+            VarjoOpennessMode mode;
+
+
             if (openness <= EYE_SQUEEZE_THRESHOLD)
             {
-                data.Squeeze = (openness / -EYE_SQUEEZE_THRESHOLD) + 1;
-                data.Openness = 0;
-                data.Widen = 0;
+                srOpenness = 0;
+                mode = VarjoOpennessMode.Squeeze;
             }
             else if (openness >= EYE_WIDEN_THRESHOLD)
             {
-                data.Squeeze = 0;
-                data.Openness = 1;
-                data.Widen = (openness - EYE_WIDEN_THRESHOLD) / (1 - EYE_WIDEN_THRESHOLD);
+                srOpenness = 1;
+                mode = VarjoOpennessMode.Widen;
             }
             else
             {
-                data.Squeeze = 0;
-                data.Openness = (openness - EYE_SQUEEZE_THRESHOLD) / (EYE_WIDEN_THRESHOLD - EYE_SQUEEZE_THRESHOLD);
-                data.Widen = 0;
+                srOpenness = (openness - EYE_SQUEEZE_THRESHOLD) / (EYE_WIDEN_THRESHOLD - EYE_SQUEEZE_THRESHOLD);
+                mode = VarjoOpennessMode.Openness;
+            }
+
+            if (trackingValid || srOpenness < data.Openness + MAX_OPENNESS_DEVIATION)
+            {
+                data.Openness = srOpenness;
+
+                switch(mode)
+                {
+                    case VarjoOpennessMode.Squeeze:
+                        data.Squeeze = (openness / -EYE_SQUEEZE_THRESHOLD) + 1;
+                        data.Widen = 0;
+                        break;
+                    case VarjoOpennessMode.Widen:
+                        data.Squeeze = 0;
+                        data.Widen = (openness - EYE_WIDEN_THRESHOLD) / (1 - EYE_WIDEN_THRESHOLD);
+                        break;
+                    default:
+                        data.Squeeze = 0;
+                        data.Widen = 0;
+                        break;
+                }
             }
         }
 
@@ -135,7 +166,13 @@ namespace VRCFTVarjoModule
         private MemoryMappedFile MemMapFile;
         private MemoryMappedViewAccessor ViewAccessor;
         private IntPtr EyeImagePointer;
-        
+        // Values for the Camera buffer size in VRCFT
+#if GEN3HMD
+        private static readonly int CAMERA_WIDTH = 1280, CAMERA_HEIGHT = 400; // 3rd Gen Varjo HMDs (VR-3, XR-3, Aero)
+#else
+        private static readonly int CAMERA_WIDTH = 2560, CAMERA_HEIGHT = 800; // 1st & 2nd Gen Varjo HMDs (VR-1, VR-2, XR-1)
+#endif
+
 
         public override (bool SupportsEye, bool SupportsLip) Supported => (true, false);
 
@@ -164,7 +201,7 @@ namespace VRCFTVarjoModule
                         ViewAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
                         EyeImagePointer = new IntPtr(ptr);
                         UnifiedTrackingData.LatestEyeData.SupportsImage = true;
-                        UnifiedTrackingData.LatestEyeData.ImageSize = (2560, 800);
+                        UnifiedTrackingData.LatestEyeData.ImageSize = (CAMERA_WIDTH, CAMERA_HEIGHT);
                     }
                     catch (FileNotFoundException)
                     {
@@ -203,9 +240,9 @@ namespace VRCFTVarjoModule
             }
             if (UnifiedTrackingData.LatestEyeData.ImageData == null)
             {
-                UnifiedTrackingData.LatestEyeData.ImageData = new byte[2560 * 800];
+                UnifiedTrackingData.LatestEyeData.ImageData = new byte[CAMERA_WIDTH * CAMERA_HEIGHT];
             }
-            Marshal.Copy(EyeImagePointer, UnifiedTrackingData.LatestEyeData.ImageData, 0, 2560*800);
+            Marshal.Copy(EyeImagePointer, UnifiedTrackingData.LatestEyeData.ImageData, 0, CAMERA_WIDTH * CAMERA_HEIGHT);
         }
 
         // The update function needs to be defined separately in case the user is running with the --vrcft-nothread launch parameter
