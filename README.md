@@ -1,4 +1,4 @@
-# VRCFaceTracking Varjo module
+# VRCFaceTracking Varjo module (Maintained [here](https://github.com/Chickenbreadlp/VRCFTVarjoModule))
 
 The module provides gaze tracking data for VRCFaceTracking tool while using Varjo headsets.
 
